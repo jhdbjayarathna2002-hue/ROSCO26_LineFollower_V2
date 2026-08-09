@@ -1,55 +1,160 @@
 #include "Motor.h"
 
+// ============================================================
+// MOTOR MODULE
+// TB6612FNG
+// ============================================================
+//
+// Left motor:
+// PWMA = GPIO18
+// AIN1 = GPIO19
+// AIN2 = GPIO20
+//
+// Right motor:
+// PWMB = GPIO21
+// BIN1 = GPIO22
+// BIN2 = GPIO23
+//
+// STBY = GPIO7
+// ============================================================
+
 
 // ============================================================
-// MOTOR INITIALIZATION
+// GLOBAL MOTOR OBJECT
+// ============================================================
+
+Motor motor;
+
+
+// ============================================================
+// BEGIN
 // ============================================================
 
 void Motor::begin()
 {
-    pinMode(AIN1, OUTPUT);
-    pinMode(AIN2, OUTPUT);
+    // --------------------------------------------------------
+    // Direction pins
+    // --------------------------------------------------------
 
-    pinMode(BIN1, OUTPUT);
-    pinMode(BIN2, OUTPUT);
+    pinMode(
+        AIN1,
+        OUTPUT
+    );
 
-    pinMode(STBY, OUTPUT);
+    pinMode(
+        AIN2,
+        OUTPUT
+    );
 
-    // Driver disabled at startup
-    digitalWrite(STBY, LOW);
+    pinMode(
+        BIN1,
+        OUTPUT
+    );
 
-    enabled = false;
+    pinMode(
+        BIN2,
+        OUTPUT
+    );
 
 
-    // ESP32 Arduino Core 3.x PWM
+    // --------------------------------------------------------
+    // Standby
+    // --------------------------------------------------------
 
-    ledcAttach(
+    pinMode(
+        STBY,
+        OUTPUT
+    );
+
+
+    // --------------------------------------------------------
+    // PWM
+    // --------------------------------------------------------
+    //
+    // ESP32 Arduino Core 3.x
+    // uses ledcAttach() rather than the old
+    // ledcSetup()/ledcAttachPin() method.
+    // --------------------------------------------------------
+
+    bool leftPWMOK =
+        ledcAttach(
+            PWMA,
+            PWM_FREQUENCY,
+            PWM_RESOLUTION
+        );
+
+
+    bool rightPWMOK =
+        ledcAttach(
+            PWMB,
+            PWM_FREQUENCY,
+            PWM_RESOLUTION
+        );
+
+
+    if (
+        !leftPWMOK ||
+        !rightPWMOK
+    )
+    {
+        Serial.println(
+            "[MOTOR] PWM attach failed!"
+        );
+    }
+
+
+    // --------------------------------------------------------
+    // Initial safe state
+    // --------------------------------------------------------
+
+    digitalWrite(
+        STBY,
+        LOW
+    );
+
+
+    digitalWrite(
+        AIN1,
+        LOW
+    );
+
+    digitalWrite(
+        AIN2,
+        LOW
+    );
+
+    digitalWrite(
+        BIN1,
+        LOW
+    );
+
+    digitalWrite(
+        BIN2,
+        LOW
+    );
+
+
+    ledcWrite(
         PWMA,
-        PWM_FREQUENCY,
-        PWM_RESOLUTION
+        0
     );
 
-    ledcAttach(
+    ledcWrite(
         PWMB,
-        PWM_FREQUENCY,
-        PWM_RESOLUTION
+        0
     );
 
 
-    // PWM off
+    leftPWMChannel =
+        PWMA;
 
-    ledcWrite(PWMA, 0);
+    rightPWMChannel =
+        PWMB;
 
-    ledcWrite(PWMB, 0);
 
-
-    // Motor outputs LOW
-
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, LOW);
-
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, LOW);
+    Serial.println(
+        "[MOTOR] Initialized"
+    );
 }
 
 
@@ -64,7 +169,6 @@ void Motor::enable()
         HIGH
     );
 
-    enabled = true;
 
     Serial.println(
         "[MOTOR] ENABLED"
@@ -78,37 +182,7 @@ void Motor::enable()
 
 void Motor::disable()
 {
-    ledcWrite(
-        PWMA,
-        0
-    );
-
-    ledcWrite(
-        PWMB,
-        0
-    );
-
-
-    digitalWrite(
-        AIN1,
-        LOW
-    );
-
-    digitalWrite(
-        AIN2,
-        LOW
-    );
-
-
-    digitalWrite(
-        BIN1,
-        LOW
-    );
-
-    digitalWrite(
-        BIN2,
-        LOW
-    );
+    stop();
 
 
     digitalWrite(
@@ -116,7 +190,6 @@ void Motor::disable()
         LOW
     );
 
-    enabled = false;
 
     Serial.println(
         "[MOTOR] DISABLED"
@@ -125,46 +198,43 @@ void Motor::disable()
 
 
 // ============================================================
-// STATUS
+// WRITE ONE MOTOR
 // ============================================================
-
-bool Motor::isEnabled() const
-{
-    return enabled;
-}
-
-
-// ============================================================
-// LIMIT SPEED
-// ============================================================
-
-int Motor::limitSpeed(int speed)
-{
-    return constrain(
-        speed,
-        -PWM_MAX,
-        PWM_MAX
-    );
-}
-
-
-// ============================================================
-// WRITE MOTOR
+//
+// speed:
+//
+// +255 = forward
+//    0 = stop
+// -255 = reverse
 // ============================================================
 
 void Motor::writeMotor(
-    uint8_t pwmPin,
-    uint8_t in1Pin,
-    uint8_t in2Pin,
+    int in1,
+    int in2,
+    int pwmChannel,
     int speed,
     bool inverted
 )
 {
+    // --------------------------------------------------------
+    // Limit speed
+    // --------------------------------------------------------
+
     speed =
-        limitSpeed(speed);
+        constrain(
+            speed,
+            -PWM_MAX,
+            PWM_MAX
+        );
 
 
-    if (inverted)
+    // --------------------------------------------------------
+    // Apply motor inversion
+    // --------------------------------------------------------
+
+    if (
+        inverted
+    )
     {
         speed =
             -speed;
@@ -172,24 +242,26 @@ void Motor::writeMotor(
 
 
     // --------------------------------------------------------
-    // STOP / COAST
+    // STOP
     // --------------------------------------------------------
 
-    if (speed == 0)
+    if (
+        speed == 0
+    )
     {
+        digitalWrite(
+            in1,
+            LOW
+        );
+
+        digitalWrite(
+            in2,
+            LOW
+        );
+
         ledcWrite(
-            pwmPin,
+            pwmChannel,
             0
-        );
-
-        digitalWrite(
-            in1Pin,
-            LOW
-        );
-
-        digitalWrite(
-            in2Pin,
-            LOW
         );
 
         return;
@@ -200,24 +272,19 @@ void Motor::writeMotor(
     // FORWARD
     // --------------------------------------------------------
 
-    if (speed > 0)
+    if (
+        speed > 0
+    )
     {
         digitalWrite(
-            in1Pin,
+            in1,
             HIGH
         );
 
         digitalWrite(
-            in2Pin,
+            in2,
             LOW
         );
-
-        ledcWrite(
-            pwmPin,
-            speed
-        );
-
-        return;
     }
 
 
@@ -225,19 +292,39 @@ void Motor::writeMotor(
     // REVERSE
     // --------------------------------------------------------
 
-    digitalWrite(
-        in1Pin,
-        LOW
-    );
+    else
+    {
+        digitalWrite(
+            in1,
+            LOW
+        );
 
-    digitalWrite(
-        in2Pin,
-        HIGH
-    );
+        digitalWrite(
+            in2,
+            HIGH
+        );
+
+
+        speed =
+            -speed;
+    }
+
+
+    // --------------------------------------------------------
+    // PWM
+    // --------------------------------------------------------
+
+    speed =
+        constrain(
+            speed,
+            0,
+            PWM_MAX
+        );
+
 
     ledcWrite(
-        pwmPin,
-        -speed
+        pwmChannel,
+        speed
     );
 }
 
@@ -246,18 +333,14 @@ void Motor::writeMotor(
 // LEFT MOTOR
 // ============================================================
 
-void Motor::setLeftMotor(
+void Motor::setLeft(
     int speed
 )
 {
-    if (!enabled)
-        return;
-
-
     writeMotor(
-        PWMA,
         AIN1,
         AIN2,
+        PWMA,
         speed,
         LEFT_MOTOR_INVERTED
     );
@@ -268,18 +351,14 @@ void Motor::setLeftMotor(
 // RIGHT MOTOR
 // ============================================================
 
-void Motor::setRightMotor(
+void Motor::setRight(
     int speed
 )
 {
-    if (!enabled)
-        return;
-
-
     writeMotor(
-        PWMB,
         BIN1,
         BIN2,
+        PWMB,
         speed,
         RIGHT_MOTOR_INVERTED
     );
@@ -295,15 +374,12 @@ void Motor::setMotors(
     int rightSpeed
 )
 {
-    if (!enabled)
-        return;
-
-
-    setLeftMotor(
+    setLeft(
         leftSpeed
     );
 
-    setRightMotor(
+
+    setRight(
         rightSpeed
     );
 }
@@ -312,24 +388,9 @@ void Motor::setMotors(
 // ============================================================
 // NORMAL STOP
 // ============================================================
-//
-// COAST.
-// We do NOT actively brake during normal line following.
-// ============================================================
 
 void Motor::stop()
 {
-    ledcWrite(
-        PWMA,
-        0
-    );
-
-    ledcWrite(
-        PWMB,
-        0
-    );
-
-
     digitalWrite(
         AIN1,
         LOW
@@ -340,7 +401,6 @@ void Motor::stop()
         LOW
     );
 
-
     digitalWrite(
         BIN1,
         LOW
@@ -349,48 +409,37 @@ void Motor::stop()
     digitalWrite(
         BIN2,
         LOW
+    );
+
+
+    ledcWrite(
+        PWMA,
+        0
+    );
+
+    ledcWrite(
+        PWMB,
+        0
     );
 }
 
 
 // ============================================================
-// ACTIVE BRAKE
-// ============================================================
-//
-// Not used for normal line following.
+// EMERGENCY STOP
 // ============================================================
 
-void Motor::brake()
+void Motor::emergencyStop()
 {
-    ledcWrite(
-        PWMA,
-        PWM_MAX
-    );
-
-    ledcWrite(
-        PWMB,
-        PWM_MAX
-    );
+    stop();
 
 
     digitalWrite(
-        AIN1,
-        HIGH
-    );
-
-    digitalWrite(
-        AIN2,
-        HIGH
+        STBY,
+        LOW
     );
 
 
-    digitalWrite(
-        BIN1,
-        HIGH
-    );
-
-    digitalWrite(
-        BIN2,
-        HIGH
+    Serial.println(
+        "[MOTOR] EMERGENCY STOP"
     );
 }

@@ -1,12 +1,8 @@
 #pragma once
 
 // ============================================================
-// ROSCO'26 TASK 01
-// ESP32-C6 + 16-CHANNEL IR MUX + TB6612FNG
-//
-// TRACK:
-// BLACK LINE
-// WHITE BACKGROUND
+// ROSCO'26 LINE FOLLOWER
+// ESP32-C6 + 16 IR MUX + TB6612FNG
 // ============================================================
 
 
@@ -15,6 +11,24 @@
 // ============================================================
 
 #define SERIAL_BAUD 115200
+
+
+// ============================================================
+// TRACK COLOUR
+// ============================================================
+//
+// CURRENT TEST TRACK:
+// BLACK LINE
+// WHITE BACKGROUND
+//
+// true  = black line
+// false = white line
+//
+// For official ROSCO track later:
+// set this to false.
+// ============================================================
+
+#define INVERT_LINE_FOLLOWING false
 
 
 // ============================================================
@@ -30,7 +44,7 @@
 
 #define MUX_SIG 6
 
-// MUX EN/E is connected directly to GND
+// MUX EN/E is connected directly to GND.
 
 #define ADC_RESOLUTION 12
 
@@ -40,32 +54,18 @@
 
 
 // ============================================================
-// TRACK COLOUR
-// ============================================================
-//
-// Your actual track:
-//
-// WHITE BACKGROUND
-// BLACK LINE
-//
-// Therefore:
-//
-// BLACK = LINE
-// WHITE = BACKGROUND
-//
-// true  = inverse / black-line following
-// false = normal / white-line following
-// ============================================================
-
-#define INVERT_LINE_FOLLOWING true
-
-
-// ============================================================
 // SENSOR ORDER
 // ============================================================
 //
-// C0  = LEFT
-// C15 = RIGHT
+// Physical order:
+//
+// LEFT
+//
+// C0 C1 C2 C3 C4 C5 C6 C7 C8 C9 C10 C11 C12 C13 C14 C15
+//
+// RIGHT
+//
+// C7 + C8 = CENTER PAIR
 // ============================================================
 
 #define SENSOR_REVERSED false
@@ -84,23 +84,18 @@
 // INDIVIDUAL CALIBRATION
 // ============================================================
 //
-// Each sensor gets its OWN:
+// Each sensor gets its own:
 //
-// C0  → black + white
-// C1  → black + white
-// ...
-// C15 → black + white
+// BLACK value
+// WHITE value
+// THRESHOLD
 //
-// No common ADC threshold.
-//
-// Calibration happens ONLY at startup.
+// Calibration happens ONLY once during startup.
 // ============================================================
 
 #define CALIBRATION_SAMPLES 200
 
 #define CALIBRATION_SAMPLE_DELAY_MS 2
-
-#define CALIBRATION_COUNTDOWN_MS 3000
 
 #define MIN_CALIBRATION_RANGE 150
 
@@ -124,11 +119,12 @@
 // MOTOR DIRECTION
 // ============================================================
 //
-// Change these ONLY if a motor physically runs
-// in the wrong direction.
+// Leave these as they are while the motors are working
+// correctly.
 // ============================================================
 
 #define LEFT_MOTOR_INVERTED false
+
 #define RIGHT_MOTOR_INVERTED false
 
 
@@ -144,27 +140,36 @@
 
 
 // ============================================================
-// LINE FOLLOWING SPEED
+// MOTOR SPEED
+// ============================================================
+
+#define BASE_SPEED 150
+
+#define STRAIGHT_SPEED 140
+
+#define CURVE_SPEED 100
+
+#define TURN_SPEED 115
+#define SEARCH_SPEED 110
+#define REVERSE_SPEED 75
+
+#define JUNCTION_SPEED 100
+#define CIRCLE_SPEED 100
+
+
+// ============================================================
+// MOTOR STARTING PWM
 // ============================================================
 //
-// Start relatively slow.
-// We will tune speed after basic following works.
+// Prevents motors from receiving a PWM value that is too
+// small to start the TT motors reliably.
 // ============================================================
-
-#define BASE_SPEED 130
-
-#define MAX_SPEED 255
-
-#define SEARCH_SPEED 100
 
 #define MOTOR_MIN_PWM 75
 
 
 // ============================================================
 // PID
-// ============================================================
-//
-// Starting values only.
 // ============================================================
 
 #define KP 0.01f
@@ -177,18 +182,25 @@
 
 
 // ============================================================
-// LINE DETECTION
-// ============================================================
-//
-// Normalized range:
-//
-// BLACK LINE in inverse mode = 1000
-// WHITE background            = 0
+// SENSOR LINE DETECTION
 // ============================================================
 
 #define LINE_STRENGTH_THRESHOLD 500
 
 #define MIN_LINE_STRENGTH_SUM 250
+
+
+// ============================================================
+// SENSOR POSITION
+// ============================================================
+//
+// C7 = -500
+// C8 = +500
+//
+// Therefore the center of the robot is approximately 0.
+// ============================================================
+
+#define CENTER_POSITION 0
 
 
 // ============================================================
@@ -199,60 +211,74 @@
 
 
 // ============================================================
-// LINE LOSS / DASHED LINE
-// ============================================================
-//
-// Rulebook allows dashed gaps.
-// These values will be tuned later.
+// TASK 01 — CURVE
 // ============================================================
 
-#define DASHED_LINE_TIME_MS 180
-
-#define SEARCH_TIMEOUT_MS 1000
+#define CURVE_POSITION_LIMIT 2500
 
 
 // ============================================================
-// 90 DEGREE TURN
-// ============================================================
-//
-// Not actively used in our first basic test.
-// Kept ready for the next stage.
+// TASK 01 — 90° TURN
 // ============================================================
 
-#define TURN_SIDE_COUNT 3
+#define TURN_MIN_WING_SENSORS 3
 
-#define TURN_CENTER_MAX 1
+#define TURN_MIN_CENTER_SENSORS 1
+
+#define TURN_REACQUIRE_SENSORS 2
+
+#define TURN_MIN_TIME_MS 100
 
 #define TURN_TIMEOUT_MS 700
 
 
 // ============================================================
-// JUNCTION
+// TASK 01 — DASHED LINE
 // ============================================================
 //
-// Not used in the first basic line follower.
+// Initial value only.
+// We will tune this on the actual track.
 // ============================================================
 
-#define JUNCTION_SIDE_COUNT 3
+#define DASHED_LOSS_MS 180
+
+#define SEARCH_TIMEOUT_MS 1200
+
+
+// ============================================================
+// TASK 01 — JUNCTION
+// ============================================================
+
+#define JUNCTION_MIN_WING_SENSORS 3
 
 #define JUNCTION_CONFIRM_MS 30
 
 
 // ============================================================
-// CIRCLE
+// TASK 01 — CIRCLE
 // ============================================================
 
-#define CIRCLE_ACTIVE_COUNT 10
+#define CIRCLE_MIN_ACTIVE 10
 
 #define CIRCLE_CONFIRM_MS 70
+
+#define CIRCLE_EXIT_ACTIVE 6
+
+
+// ============================================================
+// TASK 01 — DEAD END
+// ============================================================
+
+#define DEAD_END_TIMEOUT_MS 900
 
 
 // ============================================================
 // DEBUG
 // ============================================================
 //
-// Uncomment only when required.
+// Uncomment only when needed.
 //
 // #define DEBUG_SENSOR
 // #define DEBUG_POSITION
 // #define DEBUG_PID
+// #define DEBUG_TRACK

@@ -4,29 +4,27 @@
 #include "Config.h"
 
 // ============================================================
-// TRACK LOGIC MODULE
+// ROSCO'26 TASK 01
+// TRACK LOGIC
 // ============================================================
 //
-// This module controls the robot's behaviour on Task 01.
+// Handles:
 //
-// Current planned behaviours:
+//  1. Normal line following (PID)
+//  2. Curves
+//  3. 90-degree left turns
+//  4. 90-degree right turns
+//  5. Short line gaps / dashed sections
+//  6. Line search / recovery
+//  7. Dead-end recovery
+//  8. L/T/cross junctions
+//  9. Circular / cross-circle sections
+// 10. Task 01 checkpoint completion
 //
-// 1. NORMAL LINE FOLLOWING
-// 2. CURVE
-// 3. 90° LEFT TURN
-// 4. 90° RIGHT TURN
-// 5. DASHED LINE / SHORT GAP
-// 6. JUNCTION
-// 7. CIRCLE / CROSS-CIRCLE
-// 8. LINE SEARCH
-// 9. DEAD-END RECOVERY
-//
-// Sensor processing is handled by Sensors.cpp.
-// PID calculation is handled by PID.cpp.
-// Motor control is handled by Motor.cpp.
-//
-// TrackLogic only decides:
-// "What should the robot do now?"
+// Sensor processing -> Sensors
+// PID calculation   -> PID
+// Motor control     -> Motor
+// Track behaviour   -> TrackLogic
 // ============================================================
 
 
@@ -44,15 +42,17 @@ enum TrackState
 
     TRACK_TURN_RIGHT,
 
-    TRACK_DASHED,
+    TRACK_GAP,
+
+    TRACK_SEARCH,
+
+    TRACK_DEAD_END,
 
     TRACK_JUNCTION,
 
     TRACK_CIRCLE,
 
-    TRACK_SEARCH,
-
-    TRACK_DEAD_END
+    TRACK_TASK01_COMPLETE
 };
 
 
@@ -65,37 +65,35 @@ class TrackLogic
 public:
 
     // --------------------------------------------------------
-    // Initialize track logic
+    // Initialize
     // --------------------------------------------------------
 
     void begin();
 
 
     // --------------------------------------------------------
-    // Main track-control update
-    //
-    // Called repeatedly from main.cpp.
+    // Main update
     // --------------------------------------------------------
 
     void update();
 
 
     // --------------------------------------------------------
-    // Current state
+    // Get current state
     // --------------------------------------------------------
 
     TrackState state();
 
 
     // --------------------------------------------------------
-    // Force normal line following
+    // Reset to normal following
     // --------------------------------------------------------
 
     void reset();
 
 
     // --------------------------------------------------------
-    // Debug
+    // Print current state
     // --------------------------------------------------------
 
     void printState();
@@ -115,33 +113,36 @@ private:
 
     void handleTurnRight();
 
-    void handleDashed();
-
-    void handleJunction();
-
-    void handleCircle();
+    void handleGap();
 
     void handleSearch();
 
     void handleDeadEnd();
 
+    void handleJunction();
+
+    void handleCircle();
+
+    void handleTask01Complete();
+
 
     // ========================================================
-    // DETECTION
+    // FEATURE DETECTION
     // ========================================================
-
-    void detectTrackFeature();
-
 
     bool detectLeftTurn();
 
     bool detectRightTurn();
 
+    bool detectCurve();
+
+    bool detectLineLoss();
+
     bool detectJunction();
 
     bool detectCircle();
 
-    bool detectLineLoss();
+    bool detectCircleExit();
 
 
     // ========================================================
@@ -152,11 +153,11 @@ private:
 
     void startRightTurn();
 
-    bool turnLineReacquired();
+    bool turnReacquired();
 
 
     // ========================================================
-    // STATE MANAGEMENT
+    // STATE CHANGE
     // ========================================================
 
     void changeState(
@@ -165,7 +166,7 @@ private:
 
 
     // ========================================================
-    // SENSOR GROUP COUNTS
+    // SENSOR GROUPS
     // ========================================================
 
     int leftActive();
@@ -183,22 +184,32 @@ private:
 
     unsigned long lineLostTime;
 
+    // Turn candidate persistence guard (TURN_MIN_TIME_MS).
+    unsigned long turnCandidateTime;
+    // 0 = none, -1 = left, +1 = right
+    int turnCandidateDir;
+
+    // Curve candidate persistence guard (CURVE_CONFIRM_MS).
+    unsigned long curveCandidateTime;
+    bool curveCandidateActive;
+
+    // Junction candidate persistence guard (JUNCTION_CONFIRM_MS).
+    unsigned long junctionCandidateTime;
+    bool junctionCandidateActive;
+
+    // Circle candidate persistence guard (CIRCLE_CONFIRM_MS / CIRCLE_FOLLOW_EXIT_MS).
+    unsigned long circleCandidateTime;
+    bool circleCandidateActive;
+
+    // Rate-limit for DEBUG_TRACK continuous output.
+    unsigned long lastDebugTime;
+
 
     // ========================================================
-    // LAST KNOWN LINE
+    // LAST KNOWN POSITION
     // ========================================================
 
     int lastLinePosition;
-
-
-    // ========================================================
-    // TURN DIRECTION
-    //
-    // -1 = left
-    // +1 = right
-    // ========================================================
-
-    int turnDirection;
 
 
     // ========================================================
@@ -210,7 +221,7 @@ private:
 
 
 // ============================================================
-// GLOBAL TRACK LOGIC OBJECT
+// GLOBAL OBJECT
 // ============================================================
 
 extern TrackLogic track;

@@ -70,6 +70,17 @@
 
 #define SENSOR_REVERSED false
 
+// ============================================================
+// POSITION SIGN
+// ============================================================
+//
+// If the robot steers AWAY from the line instead of toward it,
+// change this from +1 to -1. This flips the PID correction
+// direction without touching any logic code.
+// ============================================================
+
+#define POSITION_SIGN (-1)
+
 
 // ============================================================
 // RGB LED
@@ -143,18 +154,18 @@
 // MOTOR SPEED
 // ============================================================
 
-#define BASE_SPEED 150
+#define BASE_SPEED 240
 
-#define STRAIGHT_SPEED 140
+#define STRAIGHT_SPEED 190
 
-#define CURVE_SPEED 100
+#define CURVE_SPEED 150
 
-#define TURN_SPEED 115
-#define SEARCH_SPEED 110
-#define REVERSE_SPEED 75
+#define TURN_SPEED 160
+#define SEARCH_SPEED 130
+#define REVERSE_SPEED 140
 
-#define JUNCTION_SPEED 100
-#define CIRCLE_SPEED 100
+#define JUNCTION_SPEED 140
+#define CIRCLE_SPEED 140
 
 
 // ============================================================
@@ -172,11 +183,12 @@
 // PID
 // ============================================================
 
-#define KP 0.01f
+#define KP 0.04f
 
 #define KI 0.0000f
 
-#define KD 0.055f
+// KD keeps overshoot under control at the higher speed.
+#define KD 0.000f
 
 #define PID_INTEGRAL_LIMIT 4000.0f
 
@@ -187,7 +199,9 @@
 
 #define LINE_STRENGTH_THRESHOLD 500
 
-#define MIN_LINE_STRENGTH_SUM 250
+// Minimum total strength across all sensors to declare line detected.
+// 350 = safely above noise, well below a single sensor fully on the line (~1000).
+#define MIN_LINE_STRENGTH_SUM 350
 
 
 // ============================================================
@@ -214,20 +228,30 @@
 // TASK 01 — CURVE
 // ============================================================
 
-#define CURVE_POSITION_LIMIT 2500
+// Raised from 2500 -> 6000.
+// With sensor weights -7500..+7500, the old value of 2500 triggered
+// CURVE on any slight off-center position on a straight section.
+// 6000 only fires for genuinely tight curves.
+#define CURVE_POSITION_LIMIT 6000
+
+// Pattern must persist this long before entering CURVE state.
+// Prevents one noisy reading from triggering the state change.
+#define CURVE_CONFIRM_MS 60
 
 
 // ============================================================
 // TASK 01 — 90° TURN
 // ============================================================
 
-#define TURN_MIN_WING_SENSORS 3
+// Raised from 3 -> 4 to prevent false turn triggers when robot drifts.
+#define TURN_MIN_WING_SENSORS 4
 
 #define TURN_MIN_CENTER_SENSORS 1
 
 #define TURN_REACQUIRE_SENSORS 2
 
-#define TURN_MIN_TIME_MS 100
+// Raised from 100 -> 200 ms for stronger turn confirmation.
+#define TURN_MIN_TIME_MS 200
 
 #define TURN_TIMEOUT_MS 700
 
@@ -240,29 +264,50 @@
 // We will tune this on the actual track.
 // ============================================================
 
-#define DASHED_LOSS_MS 180
+// At STRAIGHT_SPEED=160, 450 ms covers enough distance to cross
+// the 50mm dashed gap, but triggers the 180-turn fast at a dead end.
+#define DASHED_LOSS_MS 450
 
-#define SEARCH_TIMEOUT_MS 1200
+#define SEARCH_TIMEOUT_MS 3000
 
 
 // ============================================================
 // TASK 01 — JUNCTION
 // ============================================================
 
-#define JUNCTION_MIN_WING_SENSORS 3
+#define JUNCTION_MIN_WING_SENSORS 4
 
-#define JUNCTION_CONFIRM_MS 30
+// Center sensors required for junction (distinguishes from pure turn).
+#define JUNCTION_MIN_CENTER_SENSORS 2
+
+// Total active sensor count required to declare junction.
+#define JUNCTION_TOTAL_MIN 8
+
+#define JUNCTION_CONFIRM_MS 100
+
+// Junction navigation strategy:
+//   0 = STRAIGHT (continue through on center line)
+//   1 = LEFT     (take the left branch)
+//   2 = RIGHT    (take the right branch)
+#define JUNCTION_NAV_STRAIGHT  0
+#define JUNCTION_NAV_LEFT      1
+#define JUNCTION_NAV_RIGHT     2
+#define JUNCTION_NAV_DEFAULT   JUNCTION_NAV_STRAIGHT
 
 
 // ============================================================
 // TASK 01 — CIRCLE
 // ============================================================
 
-#define CIRCLE_MIN_ACTIVE 10
+#define CIRCLE_MIN_ACTIVE 13
 
-#define CIRCLE_CONFIRM_MS 70
+#define CIRCLE_CONFIRM_MS 150
 
 #define CIRCLE_EXIT_ACTIVE 6
+
+// Active-count must remain below CIRCLE_EXIT_ACTIVE for this long
+// before the circle exit is confirmed (avoids premature exit).
+#define CIRCLE_FOLLOW_EXIT_MS 200
 
 
 // ============================================================
@@ -281,4 +326,8 @@
 // #define DEBUG_SENSOR
 // #define DEBUG_POSITION
 // #define DEBUG_PID
-// #define DEBUG_TRACK
+#define DEBUG_TRACK
+
+// Rate-limit for DEBUG_TRACK continuous output (ms).
+// Keeps Serial from flooding the control loop.
+#define DEBUG_PRINT_RATE_MS 150
